@@ -10,6 +10,16 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+char* flip(char* ip)
+{
+	if(strcmp(ip, "128.193.36.41") == 0)
+		return "flip3";
+	
+	return ip;
+}
+
+
+
 //get sockaddr, IPv4 or IPv6:
 void *get_in_addr(struct sockaddr *sa)
 {
@@ -28,28 +38,26 @@ void *get_in_addr(struct sockaddr *sa)
  * Post-conditions: A message has been received from the server, and the
  * user has had a chance to send a message
  * ********************************************************************/
-void recMessage(int socketFD, char* handle)
+void recvMessage(int socketfd, char buffer[], int size)
 {
-
-        char buffer[500];
-
-        memset(buffer, '\0', sizeof(buffer)); // Clear out
-        int charsRecv = recv(socketFD, buffer, sizeof(buffer), 0); // Read data from the socket
-        if (charsRecv < 0) fprintf(stderr, "CLIENT: ERROR reading from socket");
-
-        if(!strcmp(buffer, "\\quit")) //if the server sent "\quit"
-        {
-                fprintf(stdout, "%s\n\n", "Session terminated by server");
- //               quitFlag = 1; //set flag to 1 so program knows to terminate
-        }
-        else //if the server did not "\quit"
-        {
-                fprintf(stdout, "%s\n", buffer); //print the message sent by server
-   //             sendMessage(socketFD, handle, &quitFlag); //send message to server
-        }
+	int charsRecv;
+        memset(buffer, '\0', size); //Set buffer
+        charsRecv = recv(socketfd, buffer, size, 0); // Read data from the socket
+        if (charsRecv < 0) {
+		fprintf(stderr, "CLIENT: ERROR reading from socket\n");
+	}
 }
 
+void sendMessage(int socketFD, char* message)
+{
+	char buffer[100];
 
+	int charsSent = send(socketFD, message, strlen(message), 0); //send message
+	if (charsSent < 0) perror("CLIENT: ERROR writing to socket");
+	if (charsSent < strlen(message)) fprintf(stderr, "CLIENT: WARNING: Not all data written to socket!\n");
+	//Receive acknowledgemnt so messages don't arrive on single buffers at clent
+	recvMessage(socketFD, buffer, sizeof(buffer));				
+}
 /**********************************************************************************
  * Description: This function takes address information and adds it to the addrinfo
  * pointer
@@ -81,7 +89,15 @@ struct addrinfo* loadAddrinfo(char* address, char* port){
 	
 	return res;
 }
-
+int createSocket(struct addrinfo *res)
+{
+	int socketfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+	if(socketfd < 0){
+		perror("Error creating socket");
+		exit(1);
+	}
+	return socketfd;
+}
 /**********************************************************************************
  * Description: This function creates a socket, binds it, and sets it to listen
  * Parameters: The port number as a string, the number of maximum number of
@@ -101,11 +117,7 @@ int startUp(char* port, int numConnections)
 	res = loadAddrinfo(NULL, port);
 
 	//create socket
-	socketfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if(socketfd < 0){
-		perror("Error creating socket");
-		exit(1);
-	}
+	socketfd = createSocket(res);
 
 	//bind the socket
 	if(bind(socketfd, res->ai_addr, res->ai_addrlen) == -1) {
@@ -114,7 +126,6 @@ int startUp(char* port, int numConnections)
 		exit(1);
 	}
 	
-
 	//set the socket to listen
 	if (listen(socketfd, numConnections) < 0) {
 		perror("Error listening with socket");
@@ -122,66 +133,86 @@ int startUp(char* port, int numConnections)
 		exit(1);
 	}
 
-
 	freeaddrinfo(res); // free the linked list
 
 	return socketfd;
 
 }
 
+//Source: https://stackoverflow.com/questions/4204666/how-to-list-files-in-a-directory-in-a-c-program
+void sendDirectory(int socketfd)
+{
+	DIR *d;
+	struct dirent *dir;
+
+
+	d = opendir(".");
+	if (d) {
+		while ((dir = readdir(d)) != NULL) {
+			if (dir->d_type == DT_REG)
+			{
+				sendMessage(socketfd, dir->d_name);
+			}
+		}
+	closedir(d);
+	}
+	sendMessage(socketfd, "***FIN");
+}
+
+void handleRequest(int socketfd, char* client_ip)
+{
+	char command[10];
+	char port[10];
+	struct addrinfo* res;
+	int sendfd;
+
+	recvMessage(socketfd, port, sizeof(port));  //receive port number
+//	fprintf(stdout, "Port %s\n", port); //print the message sent by server
+
+	recvMessage(socketfd, command, sizeof(command)); //recieve command
+//	fprintf(stdout, "Command: %s\n", command); //print the message sent by server
+
+	//Create socket and connect to client computer
+	res = loadAddrinfo(client_ip, port);
+	sendfd = createSocket(res);
+	if(connect(sendfd, res->ai_addr, res->ai_addrlen) == -1) {
+		perror("Error connecting socket in handleRequest()");
+	}
+
+	if (strcmp(command, "-l") == 0)
+	{
+		printf("List directory requested on port %s\n", port);
+		printf("Sending directory contents to %s:%s\n", flip(client_ip), port);
+		sendDirectory(sendfd);
+	}
+
+	//sendMessage(sendfd, "Test\n");
+
+	close(sendfd);
+
+}
+
 int main(int argc, char* argv[])
 {
 	struct sockaddr_storage their_addr;
-	socklen_t addr_size;
-	int socketfd, new_fd, sendfd;
+	socklen_t addr_size = sizeof their_addr;
+	int socketfd, new_fd;
 	int numConnections = 5;
-	char s[INET6_ADDRSTRLEN];
-	char buffer[500];
-	char portbuffer[500];
-	int charsRecv;
+	char client_ip[INET6_ADDRSTRLEN];
+
 
 	socketfd = startUp(argv[1], numConnections);
 
 	// now accept an incoming connection:
-	addr_size = sizeof their_addr;
 	new_fd = accept(socketfd, (struct sockaddr *)&their_addr, &addr_size);
+        inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), client_ip, sizeof client_ip);
+        printf("Connection from %s\n", flip(client_ip));
 
-        inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), s, sizeof s);
-        printf("server: got connection from %s\n", s);
+	handleRequest(new_fd, client_ip);
 
-
-        memset(portbuffer, '\0', sizeof(portbuffer)); // Clear out
-        charsRecv = recv(new_fd, portbuffer, sizeof(portbuffer), 0); // Read data from the socket
-        if (charsRecv < 0) {
-		fprintf(stderr, "CLIENT: ERROR reading from socket\n");
-	}
-        else 
-		fprintf(stdout, "Port %s\n", portbuffer); //print the message sent by server
-
-        memset(buffer, '\0', sizeof(buffer)); // Clear out
-        charsRecv = recv(new_fd, buffer, sizeof(buffer), 0); // Read data from the socket
-        if (charsRecv < 0) {
-		fprintf(stderr, "CLIENT: ERROR reading from socket\n");
-	}
-        else 
-		fprintf(stdout, "Command: %s\n", buffer); //print the message sent by server
-
-	struct addrinfo* res;
-	res = loadAddrinfo(s, portbuffer);
-	//create socket
-	sendfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-	if(sendfd < 0){
-		perror("Error creating socket");
-		exit(1);
-	}
-	if(connect(sendfd, res->ai_addr, res->ai_addrlen) == -1) {
-		perror("Error connecting socket");
-	}
-
-	close(sendfd);
 	close(new_fd);
 
-	printf("Server closed\n");
+//	printf("Server closed\n");
 	return 0;
 
 }

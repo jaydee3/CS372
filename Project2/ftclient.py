@@ -14,6 +14,16 @@
 import sys #to access args and exit
 from socket import * #to use sockets
 
+def receiveDirectory(dataSocket):
+	ack = "ACK"
+	print("Receiving directory structure from " + sys.argv[1] + ":" + sys.argv[4])
+	filename = dataSocket.recv(500).decode()
+	dataSocket.send(ack.encode())
+	i = 0
+	while filename != "***FIN":
+		print(filename, end="\n")
+		filename = dataSocket.recv(500).decode()
+		dataSocket.send(ack.encode())
 
 # make sure three arguments were entered when calling this program
 #if len(sys.argv) != 3:
@@ -42,6 +52,9 @@ serverSocket = socket(AF_INET, SOCK_STREAM)
 serverSocket.bind(('',clientPort))
 serverSocket.listen(1)
 dataSocket, addr = serverSocket.accept()
+receiveDirectory(dataSocket)
+#message = dataSocket.recv(500).decode()
+#print(message)
 
 dataSocket.close();
 serverSocket.close();

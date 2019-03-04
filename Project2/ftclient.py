@@ -1,13 +1,13 @@
-#####################################################################################################
-#  Course NameL CS 372 Introduction to Computer Networks
-#  Programming Assignment #1
-#  Program Name: chatserve.py
+i#####################################################################################################
+#  Course Name: CS 372 Introduction to Computer Networks
+#  Project 2
+#  Program Name: ftclient.py
 #  Programmer: Joshua Nutt
-#  Last Modified: 2/12/2019
-#  Description: This program is a chat server.  Is establishes a TCP socket and lets a client program
-#  connect with it.  The server and client can then chat back and forth with eachother.  The 
-#  client or server can terminate the chat session.  Once the session is closed, the  server listens
-#  for a new connection from a client.  The server can be terminated by Ctrl+C
+#  Last Modified: 3/4/2019
+#  Description: This program is a FTP client.  It connected with an FTP server through a TCP socket
+#  and then requests a list of files or to transfter a single file.  It then sets up a listening
+#  socket, which the srver will then connect with to send the file listing or file through. The server
+#  can be terminated by Ctrl+C
 #  Sources: Computer Networking: A Top-Down Approach 7th Edition by Kurose and Ross pgs 164-169
 ######################################################################################################
 
@@ -15,6 +15,13 @@ import sys #to access args and exit
 from socket import * #to use sockets
 from pathlib import Path #to test if a file exists
 
+########################################################################################
+# Description: Validates the agruments entered on teh command line
+# Parameters: The arguments entered on the command line
+# Pre-conditions: Arguments have been entereed on command line
+# Post-conditions: The arguments have been validated or the program terminated if
+# any of the aruments are not valid
+########################################################################################
 def checkArgs():
 	if len(sys.argv) < 5 or len(sys.argv) > 6:
 		print("USAGE: invalid number of arguments")
@@ -43,7 +50,15 @@ def checkArgs():
 			print("USAGE: Invalid number of arguments for command '-g'")
 			sys.exit(1)
 		
-#Source: https://stackoverflow.com/questions/17667903/python-socket-receive-large-amount-of-data		
+########################################################################################
+# Description: Used to receive a large stream such as a file from the server
+# Parameters: The socket the file will be sent over
+# Returns: The string that was received from the server
+# Pre-conditions: The socket is opened
+# Post-conditions: The message has been received
+# Source: https://stackoverflow.com/questions/17667903/python-socket-receive-large-amount-of-data		
+########################################################################################
+
 def recv_msg(sock):
     # Read message length and unpack it into an integer
     raw_msglen = receiveMessage(sock)
@@ -53,7 +68,15 @@ def recv_msg(sock):
     # Read the message data
     return recvall(sock, msglen)
 
-#Source: https://stackoverflow.com/questions/17667903/python-socket-receive-large-amount-of-data		
+########################################################################################
+# Description: Helper function that receives large stream such as a file from the server
+# Parameters: The socket the file will be sent over, the number of bytes that will be 
+# received
+# Returns: The string that was received from the server
+# Pre-conditions: The socket is opened
+# Post-conditions: The message has been received
+# Source: https://stackoverflow.com/questions/17667903/python-socket-receive-large-amount-of-data		
+########################################################################################
 def recvall(sock, n):
     # Helper function to recv n bytes or return None if EOF is hit
     data = ''
@@ -64,28 +87,51 @@ def recvall(sock, n):
         data += packet
     return data
 
+########################################################################################
+# Description: Receives a message from the server then sends an acknowledgement back
+# Parameters: The socket the message will be sent over
+# Returns: The received message
+# Pre-conditions: The socket is opened and a message will be sent over the socket
+# Post-conditions: The message has been received
+########################################################################################
 def receiveMessage(dataSocket):
 	ack = "ACK"
 	message = dataSocket.recv(500).decode()
 	dataSocket.send(ack.encode())
 	return message;
 	
+########################################################################################
+# Description: Sends a message then receives an acknowledgement the message was sent
+# Parameters: The socket the message will be sent over, the message
+# Pre-conditions: The socket is opened
+# Post-conditions: The message has been sent
+########################################################################################
 def sendMessage(dataSocket, message):
 	dataSocket.send(message.encode())
 	dataSocket.recv(500).decode()
 	
+########################################################################################
+# Description: Receives a list of files from the client
+# Parameters: The socket the list will be sent over
+# Pre-conditions: The socket is open and a directory is being sent over the socket
+# Post-conditions: The directory is received
+########################################################################################
 def receiveDirectory(dataSocket):
 	#ack = "ACK"
 	print("Receiving directory structure from " + sys.argv[1] + ":" + sys.argv[4])
 	filename = receiveMessage(dataSocket)
-	#filename = dataSocket.recv(500).decode()
-	#dataSocket.send(ack.encode())
 	while filename != "***FIN":
 		print(filename, end="\n")
 		filename = receiveMessage(dataSocket)
-		#filename = dataSocket.recv(500).decode()
-		#dataSocket.send(ack.encode())
 
+########################################################################################
+# Description: Creates a file that the user has requested, then fills that file with
+# incoming data from the server
+# Parameters: The socket the data will be sent over
+# Pre-conditions: The socket is opened, the file exists on the server, and the file
+# contents are beinf sent over the server
+# Post-conditions: The file has been copied from the server
+########################################################################################
 def receiveFile(dataSocket):
 	i = 0;
 	filename = sys.argv[4]
@@ -107,12 +153,14 @@ def receiveFile(dataSocket):
 	filedesc = open(filename,"wt")
 	filebuffer = recv_msg(dataSocket)
 	filedesc.write(filebuffer)
-#	filebuffer = dataSocket.recv(500).decode()
-#	while "***FIN" not in filebuffer:
-#		filedesc.write(filebuffer)
-#		filebuffer = data_socket.recv(500).decode()
 	filedesc.close()
 
+########################################################################################
+# Description: Creates a control connection with the server
+# Returns: The socket that has established a connection with the server
+# Pre-conditions: a server name and port number has been entered on the command line
+# Post-conditions: The connection has been established
+########################################################################################
 def initiateContact():
 	serverName = sys.argv[1] + ".engr.oregonstate.edu"
 	serverPort = int(sys.argv[2])
@@ -122,6 +170,13 @@ def initiateContact():
 	return clientSocket
 
 
+########################################################################################
+# Description: Sends a requst to the client
+# Parameters: The socket the request will be sent over
+# Returns: The port number that the requested data will be sent over
+# Pre-conditions: a command and port number have been enteded on the command line
+# Post-conditions: The command has been sent to the server
+########################################################################################
 def makeRequest(clientSocket):
 	portno = ""
 	command = sys.argv[3]
@@ -147,6 +202,12 @@ def makeRequest(clientSocket):
 	#		print(message)
 	return portno
 
+########################################################################################
+# Description: Receive a file list or file from the server
+# Parameters: The port number that will be used to establish the data connections
+# Pre-conditions: a port number has been selected
+# Post-conditions: The data has been received
+########################################################################################
 def receiveData(portno):
 	command = sys.argv[3]
 	clientPort = int(portno)
@@ -173,96 +234,14 @@ def receiveData(portno):
 
 	serverSocket.close(); #close listening socket
 
-checkArgs()
-clientSocket = initiateContact()
-portno = makeRequest(clientSocket)
-receiveData(portno)
+########################################################################################
+# Description: This is the main loop of the program
+# Parameters: The arguments entered on the command line
+# Pre-conditions: The correct arguments have been entered on the command line
+# Post-conditions: The request data has been received from the server
+########################################################################################
+checkArgs() #validate command line argument
+clientSocket = initiateContact() #establish control connections
+portno = makeRequest(clientSocket) #send request to server
+receiveData(portno) #receive data from server
 clientSocket.close(); #close original connecting socket
-
-########################################################################################
-# Description: Creates a IPv4 TCP socket and sets it to listen for connections
-# Parameters: The chat server's port number as a string
-# Returns: The server socket
-# Pre-conditions: a port number has been selected
-# Post-conditions: The listening socket has been created
-########################################################################################
-#def createSocket(port):
-#	serverPort = int(port) #get the port number and convert from string to int
-#	serverSocket = socket(AF_INET, SOCK_STREAM) #set up an IPv4 TCP socket
-#	serverSocket.bind(('', serverPort)) #assign the port number to the socket
-#	serverSocket.listen(1) #listen for TCP connection requests
-#	return serverSocket
-#
-########################################################################################
-# Description: Send a message to the chat client
-# Parameters: The server's handle, the connection socket
-# Returns: The message that was sent to the client
-# Pre-conditions: A connecton has been established
-# Post-conditions: A message has been sent
-########################################################################################
-#def sendMessage(handle, connectionSocket):
-#	message = input(handle) #get server's response to client
-#	if message != "\quit": #if the server has not decided to quit
-#		message = handle + message #prepend server's handle to message
-#	else: #if server has decided to quit, print termination message
-#		print('Terminating session')
-#	connectionSocket.send(message.encode()) #send message to client
-#	return message
-
-########################################################################################
-# Description: Receives a message from the chat client, then offers user a chance to
-# send a messagee in response
-# Parameters: The server's handle, the connection socket
-# Returns: The last message that was sent or received (so it can be tested to see if
-# either of the user's want to quit)
-# Pre-conditions: A connecton has been established
-# Post-conditions: A message has been received
-########################################################################################
-#def recvMessage(handle, connectionSocket):
-#	message = connectionSocket.recv(500).decode() #receive message from client
-#	if message == '\quit':  #Print warning termination message if client quits
-#		print('Session terminated by client')
-#	else: #if client has not quit
-#		print(message) #print message from client
-#		message = sendMessage(handle, connectionSocket)
-#	return message
-
-########################################################################################
-# Description: Loops listening for connections until the user hits CTRL+C to terminate
-# the chat serve program
-# Parameters: The server's handle, the listening socket
-# Pre-conditions: The serve socket is listening for connections
-# Post-conditions: The user has hit CTRL+C to terminate program
-########################################################################################
-#def connectLoop(handle, serverSocket):
-#	while True: #loop until SIGINT is received
-#		print('\nThe server is ready to receive\n')
-#		connectionSocket, addr = serverSocket.accept() #create a socket for TCP request from client
-#		message = connectionSocket.recv(500).decode() #get portnum from client
-#		message = handle + 'Chat session opened.' #Alert client that session has been opened
-#		connectionSocket.send(message.encode())
-#		print(message)
-#		while message != '\quit':  #loop until server of client types "\quit"
-#			message = recvMessage(handle, connectionSocket)
-#		connectionSocket.close()
-
-
-
-########################################################################################
-# Description: Main body of the program
-########################################################################################
-# make sure two arguments were entered when calling this program
-#if len(sys.argv) != 2:
-#	print('Usage: chatserve.py requires a port number')
-#	sys.exit(0)
-
-#Set up SIGINT handler for CTRL+C
-#Source: https://stackoverflow.com/questions/1112343/how-do-i-capture-sigint-in-python 
-#def signal_handler(sig, frame):
-#	print('\nTerminating ' + sys.argv[0])
-#	sys.exit(0)
-#signal.signal(signal.SIGINT, signal_handler)
-
-#serverSocket = createSocket(sys.argv[1]) #create the listening socket
-#handle = "Server> " #set the server's handle
-#connectLoop(handle, serverSocket) 

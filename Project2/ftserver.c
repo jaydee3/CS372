@@ -9,9 +9,6 @@
 #  data connection to send the requested data through. The server can be terminated by Ctrl+C
 #  Source: Beej's Guide to Network Programming Using Internet Sockets
 *****************************************************************************************************/
-
-
-
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -37,7 +34,7 @@ char* flip(char* ip)
 	if(strcmp(ip, "128.193.54.168") == 0)
 		return "flip1";
 	else if(strcmp(ip, "128.193.54.182") == 0)
-		return "flip1";
+		return "flip2";
 	else if(strcmp(ip, "128.193.36.41") == 0)
 		return "flip3";
 	
@@ -171,7 +168,7 @@ int startUp(char* port, int numConnections)
 
 	//create socket
 	socketfd = createSocket(res);
-
+	printf("Server open on port %s\n", port);
 	//bind the socket
 	if(bind(socketfd, res->ai_addr, res->ai_addrlen) == -1) {
 		perror("Error binding socket");
@@ -241,7 +238,6 @@ int fileExists(int socketfd, char* filename)
 			if (dir->d_type == DT_REG && strcmp(dir->d_name, filename) == 0)
 			{
 				found = 1;
-				printf("File found\n");
 				sendMessage(socketfd, dir->d_name); //send acknowledgment
 				break;
 			}
@@ -249,7 +245,6 @@ int fileExists(int socketfd, char* filename)
 		closedir(d);
 		if(found == 0) //if the file was not fount
 		{
-			printf("File not found\n");
 			sendMessage(socketfd, "File not found"); //let the client know file was not found
 		}
 	}
@@ -311,12 +306,12 @@ void fileSend(int socketfd, char* filename)
  * Description: This function receives a request to send a file list or a file
  * to the client, opens a control connection, and then executes that request
  * Parameters: A socket file descriptor to receive the request on, the client's IP address
- * as a string
+ * as a string, th control connection port
  * Pre-conditions: The socket has been connected to the client
  * Post-conditions: The directory or list of files has been sent to the client
  * Source: Beej's Guide to Network Programming Using Internet Sockets
  * *******************************************************************************/
-void handleRequest(int socketfd, char* client_ip)
+void handleRequest(int socketfd, char* client_ip, char* outport)
 {
 	char command[10];
 	char port[10];
@@ -333,9 +328,11 @@ void handleRequest(int socketfd, char* client_ip)
 	{
 		recvMessage(socketfd, filename, sizeof(filename));
 		printf("File \"%s\" requested on port %s\n", filename, port);
-		if (fileExists(socketfd, filename) == 0) //if the file was not found
+		if (fileExists(socketfd, filename) == 0)
+		{ //if the file was not found
+			printf("File not found.  Sending error message to %s:%s\n", flip(client_ip), outport);
 			return;
-		
+		}
 	}
 
 	//Create data transfer socket and connect to client computer
@@ -358,10 +355,8 @@ void handleRequest(int socketfd, char* client_ip)
 	//If the client requested a file transfer
 	else if (strcmp(command, "-g") == 0)
 	{
-	 	printf("Sending file\n");
+	 	printf("Sending \"%s\" to %s:%s\n", filename, flip(client_ip), port);
 		fileSend(sendfd, filename);
-	 	printf("File sent\n");
-
 	}
 	
 	close(sendfd); //close the data connection
@@ -392,9 +387,9 @@ int main(int argc, char* argv[])
 		//Get the clients IP address.  Source: Beej's Guide
 		inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), client_ip, sizeof client_ip);
 		//Print the client connection
-		printf("Connection from %s\n", flip(client_ip));
+		printf("\nConnection from %s\n", flip(client_ip));
 		//Handle the request from the client
-		handleRequest(new_fd, client_ip);
+		handleRequest(new_fd, client_ip, argv[1]);
 		//close the incoming connection
 		close(new_fd);
 	}

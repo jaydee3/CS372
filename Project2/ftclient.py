@@ -1,4 +1,4 @@
-i#####################################################################################################
+#####################################################################################################
 #  Course Name: CS 372 Introduction to Computer Networks
 #  Project 2
 #  Program Name: ftclient.py
@@ -60,13 +60,15 @@ def checkArgs():
 ########################################################################################
 
 def recv_msg(sock):
-    # Read message length and unpack it into an integer
-    raw_msglen = receiveMessage(sock)
-    if not raw_msglen:
-        return None
-    msglen = int(raw_msglen)
-    # Read the message data
-    return recvall(sock, msglen)
+	# Receive the size of the file as a string
+	raw_msglen = receiveMessage(sock)
+	#if not received, return null string
+	if not raw_msglen:
+		return None
+	#onvert received number to integer
+	msglen = int(raw_msglen)
+	# Read the message data
+	return recvall(sock, msglen)
 
 ########################################################################################
 # Description: Helper function that receives large stream such as a file from the server
@@ -80,7 +82,7 @@ def recv_msg(sock):
 def recvall(sock, n):
     # Helper function to recv n bytes or return None if EOF is hit
     data = ''
-    while len(data) < n:
+    while len(data) < n: #n is the total number of expected bytes that will be transfered
         packet = sock.recv(n - len(data)).decode()
         if not packet:
             return None
@@ -117,11 +119,10 @@ def sendMessage(dataSocket, message):
 # Post-conditions: The directory is received
 ########################################################################################
 def receiveDirectory(dataSocket):
-	#ack = "ACK"
 	print("Receiving directory structure from " + sys.argv[1] + ":" + sys.argv[4])
 	filename = receiveMessage(dataSocket)
 	while filename != "***FIN":
-		print(filename, end="\n")
+		print("  " + filename, end="\n")
 		filename = receiveMessage(dataSocket)
 
 ########################################################################################
@@ -133,27 +134,30 @@ def receiveDirectory(dataSocket):
 # Post-conditions: The file has been copied from the server
 ########################################################################################
 def receiveFile(dataSocket):
-	i = 0;
+	i = 0; #this counter is appended to the end of the filename if the file already exists in the client's folder
 	filename = sys.argv[4]
+	print("Receiving \"" + filename +"\" from " + sys.argv[1] + ":" + sys.argv[5])
+	#Source: https://therenegadecoder.com/code/how-to-check-if-a-file-exists-in-python/
 	config = Path(filename)
-	while config.is_file():
-		i += 1;
+	while config.is_file(): #while a file with the stored filename already exists
+		i += 1; #if it exists, increment the counter
 		#Source: https://stackoverflow.com/questions/4022827/insert-some-string-into-given-string-at-given-index-in-python
 		filename = sys.argv[4]
-		index = filename.find('.')
-		if index == -1:
-			filename = filename + "(" + str(i) + ")"
-		else:
-			filename = filename[:index] + "(" + str(i) + ")" + filename[index:]
-		config = Path(filename)
-	if filename != sys.argv[4]:
+		index = filename.find('.') #see if there is a dot in the file name
+		if index == -1: # if there is no dot in the file name
+			filename = filename + "(" + str(i) + ")" #append the number in the counter to the filename
+		else: #if there is a .
+			filename = filename[:index] + "(" + str(i) + ")" + filename[index:] #append the counter number before the dot
+		config = Path(filename) #store the new file name in config to test on the next loop
+	if filename != sys.argv[4]: #if the file has to be saved as a copy
 		print("File " + sys.argv[4] + " already exists. Saving file as " + filename)
 		
 	#Source: https://www.guru99.com/reading-and-writing-files-in-python.html
-	filedesc = open(filename,"wt")
-	filebuffer = recv_msg(dataSocket)
-	filedesc.write(filebuffer)
-	filedesc.close()
+	filedesc = open(filename,"wt") #open file for writing
+	filebuffer = recv_msg(dataSocket) #receive data
+	filedesc.write(filebuffer) #save data to file
+	filedesc.close() #close file
+	print("File transfer complete")
 
 ########################################################################################
 # Description: Creates a control connection with the server
@@ -166,7 +170,6 @@ def initiateContact():
 	serverPort = int(sys.argv[2])
 	clientSocket = socket(AF_INET, SOCK_STREAM)
 	clientSocket.connect((serverName,serverPort))
-	print("Client Connected")
 	return clientSocket
 
 
@@ -180,26 +183,25 @@ def initiateContact():
 def makeRequest(clientSocket):
 	portno = ""
 	command = sys.argv[3]
+	#get port no based on command entered on command line
 	if command == "-l":
 		portno = sys.argv[4]
 	elif command == "-g":
 		portno = sys.argv[5]
 	else:
-		sys.exit(0)
-	sendMessage(clientSocket, portno)
-	sendMessage(clientSocket, command)
-	print("Send portno and command")
+		sys.exit(0) #exit if invlaid command
+	sendMessage(clientSocket, portno) #send data port to server
+	sendMessage(clientSocket, command) #send command to server
 
+	#if the user requested a file, send filename to client and exit if file was not found
 	if command == "-g":
 		filename = sys.argv[4]
 		sendMessage(clientSocket, filename)
 		message = receiveMessage(clientSocket)
 		if message == "File not found":
-			print(message)
+			print(sys.argv[1] + ":" + sys.argv[2] + " says FILE NOT FOUND")
 			clientSocket.close(); #close original connecting socket
 			sys.exit(0)
-	#	else:
-	#		print(message)
 	return portno
 
 ########################################################################################
@@ -211,8 +213,9 @@ def makeRequest(clientSocket):
 def receiveData(portno):
 	command = sys.argv[3]
 	clientPort = int(portno)
+	#create, bind, and listen for connection with data connection socket
 	serverSocket = socket(AF_INET, SOCK_STREAM)
-	try:
+	try: #sometimes the ports are not available, so exit if not
 		serverSocket.bind(('',clientPort))
 		serverSocket.listen(1)
 		dataSocket, addr = serverSocket.accept()
@@ -221,17 +224,16 @@ def receiveData(portno):
 		serverSocket.close(); #close listening socket
 		clientSocket.close(); #close original connecting socket
 		sys.exit(0)	
-
+	
+	#Receive file list
 	if command == "-l":
 		receiveDirectory(dataSocket)
-		dataSocket.close() #close data connection
-		print("Closed data socket")
 
+	#recive file
 	if command == "-g":
 		receiveFile(dataSocket)
-		dataSocket.close() #close data connection
-		print("Closed data socket")
 
+	dataSocket.close() #close data connection
 	serverSocket.close(); #close listening socket
 
 ########################################################################################

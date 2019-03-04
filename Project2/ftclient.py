@@ -15,6 +15,35 @@ import sys #to access args and exit
 from socket import * #to use sockets
 from pathlib import Path #to test if a file exists
 
+def checkArgs():
+	if len(sys.argv) < 5 or len(sys.argv) > 6:
+		print("USAGE: invalid number of arguments")
+		sys.exit(1)
+	if sys.argv[1] != "flip1" and  sys.argv[1] != "flip2" and sys.argv[1] != "flip3":
+		print("USAGE: Second argument must be flip1, flip2, or flip3")
+		sys.exit(1)
+	if int(sys.argv[2]) < 1024 or int(sys.argv[2]) > 65535:
+		print("USAGE: Invalid port number at argument three")
+		sys.exit(1)
+	if sys.argv[3] != "-g" and sys.argv[3] != "-l":
+		print("USAGE: Fourth argument must be '-l' to list files or '-g' to get file")
+		sys.exit(1)
+	if sys.argv[3] == "-l": 
+		if int(sys.argv[4]) < 1024 or int(sys.argv[4]) > 65535:
+			print("USAGE: Invalid port number at argument five")
+			sys.exit(1)
+		if len(sys.argv) != 5:
+			print("USAGE: Invalid number of arguments for command '-l'")
+			sys.exit(1)
+	if sys.argv[3] == "-g": 
+		if int(sys.argv[5]) < 1024 or int(sys.argv[5]) > 65535:
+			print("USAGE: Invalid port number at argument six")
+			sys.exit(1)
+		if len(sys.argv) != 6:
+			print("USAGE: Invalid number of arguments for command '-g'")
+			sys.exit(1)
+		
+#Source: https://stackoverflow.com/questions/17667903/python-socket-receive-large-amount-of-data		
 def recv_msg(sock):
     # Read message length and unpack it into an integer
     raw_msglen = receiveMessage(sock)
@@ -24,6 +53,7 @@ def recv_msg(sock):
     # Read the message data
     return recvall(sock, msglen)
 
+#Source: https://stackoverflow.com/questions/17667903/python-socket-receive-large-amount-of-data		
 def recvall(sock, n):
     # Helper function to recv n bytes or return None if EOF is hit
     data = ''
@@ -61,16 +91,18 @@ def receiveFile(dataSocket):
 	filename = sys.argv[4]
 	config = Path(filename)
 	while config.is_file():
-		print("File " + filename + " already exists.")
 		i += 1;
 		#Source: https://stackoverflow.com/questions/4022827/insert-some-string-into-given-string-at-given-index-in-python
 		filename = sys.argv[4]
 		index = filename.find('.')
 		if index == -1:
-			filename = filename + str(i)
+			filename = filename + "(" + str(i) + ")"
 		else:
-			filename = filename[:index] + str(i) + filename[index:]
+			filename = filename[:index] + "(" + str(i) + ")" + filename[index:]
 		config = Path(filename)
+	if filename != sys.argv[4]:
+		print("File " + sys.argv[4] + " already exists. Saving file as " + filename)
+		
 	#Source: https://www.guru99.com/reading-and-writing-files-in-python.html
 	filedesc = open(filename,"wt")
 	filebuffer = recv_msg(dataSocket)
@@ -81,64 +113,70 @@ def receiveFile(dataSocket):
 #		filebuffer = data_socket.recv(500).decode()
 	filedesc.close()
 
-# make sure three arguments were entered when calling this program
-#if len(sys.argv) != 3:
-#	print('Usage: chatserve.py requires a port number')
-#	sys.exit(0)
+def initiateContact():
+	serverName = sys.argv[1] + ".engr.oregonstate.edu"
+	serverPort = int(sys.argv[2])
+	clientSocket = socket(AF_INET, SOCK_STREAM)
+	clientSocket.connect((serverName,serverPort))
+	print("Client Connected")
+	return clientSocket
 
-serverName = sys.argv[1] + ".engr.oregonstate.edu"
-serverPort = int(sys.argv[2])
-clientSocket = socket(AF_INET, SOCK_STREAM)
-clientSocket.connect((serverName,serverPort))
-print("Client Connected")
-portno = ""
-command = sys.argv[3]
-if command == "-l":
-	portno = sys.argv[4]
-elif command == "-g":
-	portno = sys.argv[5]
-else:
-	sys.exit(0)
-#clientSocket.send(portno.encode())
-sendMessage(clientSocket, portno)
-#clientSocket.send(command.encode())
-sendMessage(clientSocket, command)
-print("Send portno and command")
 
-if command == "-g":
-	filename = sys.argv[4]
-	sendMessage(clientSocket, filename)
-	message = receiveMessage(clientSocket)
-	if message == "File not found":
-		print(message)
-		clientSocket.close(); #close original connecting socket
-		sys.exit(0)
+def makeRequest(clientSocket):
+	portno = ""
+	command = sys.argv[3]
+	if command == "-l":
+		portno = sys.argv[4]
+	elif command == "-g":
+		portno = sys.argv[5]
 	else:
-		print(message)
+		sys.exit(0)
+	sendMessage(clientSocket, portno)
+	sendMessage(clientSocket, command)
+	print("Send portno and command")
 
-clientPort = int(portno)
-serverSocket = socket(AF_INET, SOCK_STREAM)
-try:
-	serverSocket.bind(('',clientPort))
-	serverSocket.listen(1)
-	dataSocket, addr = serverSocket.accept()
-except:
-	print("ERROR: Port already in use")
+	if command == "-g":
+		filename = sys.argv[4]
+		sendMessage(clientSocket, filename)
+		message = receiveMessage(clientSocket)
+		if message == "File not found":
+			print(message)
+			clientSocket.close(); #close original connecting socket
+			sys.exit(0)
+	#	else:
+	#		print(message)
+	return portno
+
+def receiveData(portno):
+	command = sys.argv[3]
+	clientPort = int(portno)
+	serverSocket = socket(AF_INET, SOCK_STREAM)
+	try:
+		serverSocket.bind(('',clientPort))
+		serverSocket.listen(1)
+		dataSocket, addr = serverSocket.accept()
+	except:
+		print("ERROR: Port already in use")
+		serverSocket.close(); #close listening socket
+		clientSocket.close(); #close original connecting socket
+		sys.exit(0)	
+
+	if command == "-l":
+		receiveDirectory(dataSocket)
+		dataSocket.close() #close data connection
+		print("Closed data socket")
+
+	if command == "-g":
+		receiveFile(dataSocket)
+		dataSocket.close() #close data connection
+		print("Closed data socket")
+
 	serverSocket.close(); #close listening socket
-	clientSocket.close(); #close original connecting socket
-	sys.exit(0)	
 
-if command == "-l":
-	receiveDirectory(dataSocket)
-	dataSocket.close() #close data connection
-	print("Closed data socket")
-
-if command == "-g":
-	receiveFile(dataSocket)
-	dataSocket.close() #close data connection
-	print("Closed data socket")
-
-serverSocket.close(); #close listening socket
+checkArgs()
+clientSocket = initiateContact()
+portno = makeRequest(clientSocket)
+receiveData(portno)
 clientSocket.close(); #close original connecting socket
 
 ########################################################################################

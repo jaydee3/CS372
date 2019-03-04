@@ -9,6 +9,7 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/ioctl.h>
 
 char* flip(char* ip)
 {
@@ -189,6 +190,50 @@ int fileExists(int socketfd, char* filename)
 }
 
 
+
+
+void fileSend(int socketfd, char* filename)
+{
+	int fileDesc = open(filename, O_RDONLY);
+	if (fileDesc < 0)
+	{
+		fprintf(stderr, "Not able to open %s for reading\n", filename);
+		return;
+	}
+	int fileSize = lseek(fileDesc, 0 , SEEK_END); //get number of characters in text file
+	char buffer[fileSize]; //create buffer to hold all the chars from the file;
+	int charsRead, charsSent; //stores the number of characters sent and received
+    
+	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
+    
+	lseek(fileDesc, 0, SEEK_SET); //reset offset to begining of file
+
+	char size[10];
+	sprintf(size, "%d",fileSize);
+	sendMessage(socketfd, size); // Write to the client
+
+	charsRead = read(fileDesc, buffer, fileSize); //read the text from the file
+	charsSent = send(socketfd, buffer, charsRead, 0); // Write to the server
+	if (charsSent < 0) perror("CLIENT: ERROR writing to socket");
+	if (charsSent < charsRead) printf("CLIENT: WARNING: Not all data written to socket!\n");
+
+	//Make sure all data was sent. Code from CS344 Lecture 4.2 by Benjamin Brewster
+	int checkSend = -5;  // Bytes remaining in send buffer
+	do
+	{
+		ioctl(socketfd, TIOCOUTQ, &checkSend);  // Check the send buffer for this socket
+  	}while (checkSend > 0);  // Loop forever until send buffer for this socket is empty
+	if (checkSend < 0)  // Check if we actually stopped the loop because of an error
+    		perror("ioctl error");
+
+	send(socketfd, "***FIN", sizeof("***FIN"), 0); // Write to the server
+
+	close(fileDesc);
+	
+	return;
+}
+
+
 void handleRequest(int socketfd, char* client_ip)
 {
 	char command[10];
@@ -204,9 +249,8 @@ void handleRequest(int socketfd, char* client_ip)
 	fprintf(stdout, "Command: %s\n", command); //print the message sent by server
 	if (strcmp(command, "-g") == 0)
 	{
-		printf("Geeting filename\n");
 		recvMessage(socketfd, filename, sizeof(filename));
-		printf("Filename received\n");
+		printf("File \"%s\" requested on port %s\n", filename, port);
 		if (fileExists(socketfd, filename) == 0)
 			return;
 		
@@ -214,10 +258,10 @@ void handleRequest(int socketfd, char* client_ip)
 
 	//Create socket and connect to client computer
 	res = loadAddrinfo(client_ip, port);
-	sleep(2);
+	sleep(1); //give client time to set up listening socket
 	sendfd = createSocket(res);
 	if(connect(sendfd, res->ai_addr, res->ai_addrlen) == -1) {
-		perror("Error connecting socket in handleRequest()");
+		perror("Error connecting socket in handleRequest().  Probably a bad port# from client");
 		close(sendfd);
 		return;
 	}
@@ -228,8 +272,14 @@ void handleRequest(int socketfd, char* client_ip)
 		printf("Sending directory contents to %s:%s\n", flip(client_ip), port);
 		sendDirectory(sendfd);
 	}
+	else if (strcmp(command, "-g") == 0)
+	{
+	 	printf("Sending file\n");
+		fileSend(sendfd, filename);
+	 	printf("File sent\n");
 
-
+	}
+	
 	//sendMessage(sendfd, "Test\n");
 
 	close(sendfd);

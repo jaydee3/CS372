@@ -13,6 +13,26 @@
 
 import sys #to access args and exit
 from socket import * #to use sockets
+from pathlib import Path #to test if a file exists
+
+def recv_msg(sock):
+    # Read message length and unpack it into an integer
+    raw_msglen = receiveMessage(sock)
+    if not raw_msglen:
+        return None
+    msglen = int(raw_msglen)
+    # Read the message data
+    return recvall(sock, msglen)
+
+def recvall(sock, n):
+    # Helper function to recv n bytes or return None if EOF is hit
+    data = ''
+    while len(data) < n:
+        packet = sock.recv(n - len(data)).decode()
+        if not packet:
+            return None
+        data += packet
+    return data
 
 def receiveMessage(dataSocket):
 	ack = "ACK"
@@ -35,6 +55,31 @@ def receiveDirectory(dataSocket):
 		filename = receiveMessage(dataSocket)
 		#filename = dataSocket.recv(500).decode()
 		#dataSocket.send(ack.encode())
+
+def receiveFile(dataSocket):
+	i = 0;
+	filename = sys.argv[4]
+	config = Path(filename)
+	while config.is_file():
+		print("File " + filename + " already exists.")
+		i += 1;
+		#Source: https://stackoverflow.com/questions/4022827/insert-some-string-into-given-string-at-given-index-in-python
+		filename = sys.argv[4]
+		index = filename.find('.')
+		if index == -1:
+			filename = filename + str(i)
+		else:
+			filename = filename[:index] + str(i) + filename[index:]
+		config = Path(filename)
+	#Source: https://www.guru99.com/reading-and-writing-files-in-python.html
+	filedesc = open(filename,"wt")
+	filebuffer = recv_msg(dataSocket)
+	filedesc.write(filebuffer)
+#	filebuffer = dataSocket.recv(500).decode()
+#	while "***FIN" not in filebuffer:
+#		filedesc.write(filebuffer)
+#		filebuffer = data_socket.recv(500).decode()
+	filedesc.close()
 
 # make sure three arguments were entered when calling this program
 #if len(sys.argv) != 3:
@@ -71,29 +116,30 @@ if command == "-g":
 	else:
 		print(message)
 
-if command == "-l":
-	clientPort = int(portno)
-	serverSocket = socket(AF_INET, SOCK_STREAM)
-	try:
-		serverSocket.bind(('',clientPort))
-		serverSocket.listen(1)
-		dataSocket, addr = serverSocket.accept()
-		receiveDirectory(dataSocket)
-		dataSocket.close() #close data connection
-		print("Closed data socket")
-	except:
-		print("ERROR: Port already in use")
+clientPort = int(portno)
+serverSocket = socket(AF_INET, SOCK_STREAM)
+try:
+	serverSocket.bind(('',clientPort))
+	serverSocket.listen(1)
+	dataSocket, addr = serverSocket.accept()
+except:
+	print("ERROR: Port already in use")
 	serverSocket.close(); #close listening socket
-	print("Closed Server Socket")
-	
+	clientSocket.close(); #close original connecting socket
+	sys.exit(0)	
 
-#message = dataSocket.recv(500).decode()
-#print(message)
+if command == "-l":
+	receiveDirectory(dataSocket)
+	dataSocket.close() #close data connection
+	print("Closed data socket")
 
-#dataSocket.close();
+if command == "-g":
+	receiveFile(dataSocket)
+	dataSocket.close() #close data connection
+	print("Closed data socket")
 
+serverSocket.close(); #close listening socket
 clientSocket.close(); #close original connecting socket
-print("Closed client Socket")
 
 ########################################################################################
 # Description: Creates a IPv4 TCP socket and sets it to listen for connections

@@ -14,16 +14,27 @@
 import sys #to access args and exit
 from socket import * #to use sockets
 
-def receiveDirectory(dataSocket):
+def receiveMessage(dataSocket):
 	ack = "ACK"
-	print("Receiving directory structure from " + sys.argv[1] + ":" + sys.argv[4])
-	filename = dataSocket.recv(500).decode()
+	message = dataSocket.recv(500).decode()
 	dataSocket.send(ack.encode())
-	i = 0
+	return message;
+	
+def sendMessage(dataSocket, message):
+	dataSocket.send(message.encode())
+	dataSocket.recv(500).decode()
+	
+def receiveDirectory(dataSocket):
+	#ack = "ACK"
+	print("Receiving directory structure from " + sys.argv[1] + ":" + sys.argv[4])
+	filename = receiveMessage(dataSocket)
+	#filename = dataSocket.recv(500).decode()
+	#dataSocket.send(ack.encode())
 	while filename != "***FIN":
 		print(filename, end="\n")
-		filename = dataSocket.recv(500).decode()
-		dataSocket.send(ack.encode())
+		filename = receiveMessage(dataSocket)
+		#filename = dataSocket.recv(500).decode()
+		#dataSocket.send(ack.encode())
 
 # make sure three arguments were entered when calling this program
 #if len(sys.argv) != 3:
@@ -43,22 +54,46 @@ elif command == "-g":
 	portno = sys.argv[5]
 else:
 	sys.exit(0)
-clientSocket.send(portno.encode())
-clientSocket.send(command.encode())
+#clientSocket.send(portno.encode())
+sendMessage(clientSocket, portno)
+#clientSocket.send(command.encode())
+sendMessage(clientSocket, command)
+print("Send portno and command")
 
+if command == "-g":
+	filename = sys.argv[4]
+	sendMessage(clientSocket, filename)
+	message = receiveMessage(clientSocket)
+	if message == "File not found":
+		print(message)
+		clientSocket.close(); #close original connecting socket
+		sys.exit(0)
+	else:
+		print(message)
 
-clientPort = int(portno)
-serverSocket = socket(AF_INET, SOCK_STREAM)
-serverSocket.bind(('',clientPort))
-serverSocket.listen(1)
-dataSocket, addr = serverSocket.accept()
-receiveDirectory(dataSocket)
+if command == "-l":
+	clientPort = int(portno)
+	serverSocket = socket(AF_INET, SOCK_STREAM)
+	try:
+		serverSocket.bind(('',clientPort))
+		serverSocket.listen(1)
+		dataSocket, addr = serverSocket.accept()
+		receiveDirectory(dataSocket)
+		dataSocket.close() #close data connection
+		print("Closed data socket")
+	except:
+		print("ERROR: Port already in use")
+	serverSocket.close(); #close listening socket
+	print("Closed Server Socket")
+	
+
 #message = dataSocket.recv(500).decode()
 #print(message)
 
-dataSocket.close();
-serverSocket.close();
-clientSocket.close();
+#dataSocket.close();
+
+clientSocket.close(); #close original connecting socket
+print("Closed client Socket")
 
 ########################################################################################
 # Description: Creates a IPv4 TCP socket and sets it to listen for connections

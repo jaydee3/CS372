@@ -44,19 +44,21 @@ void recvMessage(int socketfd, char buffer[], int size)
         memset(buffer, '\0', size); //Set buffer
         charsRecv = recv(socketfd, buffer, size, 0); // Read data from the socket
         if (charsRecv < 0) {
-		fprintf(stderr, "CLIENT: ERROR reading from socket\n");
+		fprintf(stderr, "CLIENT: ERROR reading from socket in recvMessage\n");
 	}
+	send(socketfd, "ACK", strlen("ACK"), 0); //send message
+	
 }
 
-void sendMessage(int socketFD, char* message)
+void sendMessage(int socketfd, char* message)
 {
 	char buffer[100];
 
-	int charsSent = send(socketFD, message, strlen(message), 0); //send message
+	int charsSent = send(socketfd, message, strlen(message), 0); //send message
 	if (charsSent < 0) perror("CLIENT: ERROR writing to socket");
 	if (charsSent < strlen(message)) fprintf(stderr, "CLIENT: WARNING: Not all data written to socket!\n");
 	//Receive acknowledgemnt so messages don't arrive on single buffers at clent
-	recvMessage(socketFD, buffer, sizeof(buffer));				
+        recv(socketfd, buffer, sizeof(buffer), 0); // wait for acknowledgement from server
 }
 /**********************************************************************************
  * Description: This function takes address information and adds it to the addrinfo
@@ -144,8 +146,6 @@ void sendDirectory(int socketfd)
 {
 	DIR *d;
 	struct dirent *dir;
-
-
 	d = opendir(".");
 	if (d) {
 		while ((dir = readdir(d)) != NULL) {
@@ -159,10 +159,41 @@ void sendDirectory(int socketfd)
 	sendMessage(socketfd, "***FIN");
 }
 
+
+int fileExists(int socketfd, char* filename)
+{
+	DIR *d;
+	struct dirent *dir;
+	d = opendir(".");
+	int found = 0;
+	if (d) 
+	{
+		while ((dir = readdir(d)) != NULL) {
+			if (dir->d_type == DT_REG && strcmp(dir->d_name, filename) == 0)
+			{
+				found = 1;
+				printf("File found\n");
+				sendMessage(socketfd, dir->d_name);
+				break;
+			}
+		}
+		closedir(d);
+		if(found == 0)
+		{
+			printf("File not found\n");
+			sendMessage(socketfd, "File not found");
+		}
+	}
+
+	return found;
+}
+
+
 void handleRequest(int socketfd, char* client_ip)
 {
 	char command[10];
 	char port[10];
+	char filename[100];
 	struct addrinfo* res;
 	int sendfd;
 
@@ -170,13 +201,25 @@ void handleRequest(int socketfd, char* client_ip)
 //	fprintf(stdout, "Port %s\n", port); //print the message sent by server
 
 	recvMessage(socketfd, command, sizeof(command)); //recieve command
-//	fprintf(stdout, "Command: %s\n", command); //print the message sent by server
+	fprintf(stdout, "Command: %s\n", command); //print the message sent by server
+	if (strcmp(command, "-g") == 0)
+	{
+		printf("Geeting filename\n");
+		recvMessage(socketfd, filename, sizeof(filename));
+		printf("Filename received\n");
+		if (fileExists(socketfd, filename) == 0)
+			return;
+		
+	}
 
 	//Create socket and connect to client computer
 	res = loadAddrinfo(client_ip, port);
+	sleep(2);
 	sendfd = createSocket(res);
 	if(connect(sendfd, res->ai_addr, res->ai_addrlen) == -1) {
 		perror("Error connecting socket in handleRequest()");
+		close(sendfd);
+		return;
 	}
 
 	if (strcmp(command, "-l") == 0)
@@ -185,6 +228,7 @@ void handleRequest(int socketfd, char* client_ip)
 		printf("Sending directory contents to %s:%s\n", flip(client_ip), port);
 		sendDirectory(sendfd);
 	}
+
 
 	//sendMessage(sendfd, "Test\n");
 
@@ -203,15 +247,19 @@ int main(int argc, char* argv[])
 
 	socketfd = startUp(argv[1], numConnections);
 
-	// now accept an incoming connection:
-	new_fd = accept(socketfd, (struct sockaddr *)&their_addr, &addr_size);
-        inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), client_ip, sizeof client_ip);
-        printf("Connection from %s\n", flip(client_ip));
+	while(1)
+	{
+		// now accept an incoming connection:
+		new_fd = accept(socketfd, (struct sockaddr *)&their_addr, &addr_size);
+		inet_ntop(their_addr.ss_family, get_in_addr((struct sockaddr *)&their_addr), client_ip, sizeof client_ip);
+		printf("Connection from %s\n", flip(client_ip));
 
-	handleRequest(new_fd, client_ip);
+		handleRequest(new_fd, client_ip);
 
-	close(new_fd);
+		close(new_fd);
+	}
 
+	close(socketfd);
 //	printf("Server closed\n");
 	return 0;
 

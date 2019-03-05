@@ -339,9 +339,11 @@ void handleRequest(int socketfd, char* client_ip, char* outport)
 	res = loadAddrinfo(client_ip, port);
 	sleep(1); //give client time to set up listening socket
 	sendfd = createSocket(res); 
-	if(connect(sendfd, res->ai_addr, res->ai_addrlen) == -1) {
+	if(connect(sendfd, res->ai_addr, res->ai_addrlen) == -1)
+	{
 		perror("Error connecting socket in handleRequest().  Probably a bad port# from client");
-		close(sendfd);
+		if(close(sendfd) != 0) //close the data connection
+			printf("sendfd not closed\n");
 		return;
 	}
 
@@ -359,7 +361,8 @@ void handleRequest(int socketfd, char* client_ip, char* outport)
 		fileSend(sendfd, filename);
 	}
 	
-	close(sendfd); //close the data connection
+	if(close(sendfd) != 0) //close the data connection
+		printf("sendfd not closed\n");
 }
 
 /**********************************************************************************
@@ -390,11 +393,10 @@ int main(int argc, char* argv[])
 		printf("\nConnection from %s\n", flip(client_ip));
 		//Handle the request from the client
 		handleRequest(new_fd, client_ip, argv[1]);
-		//close the incoming connection
-		close(new_fd);
 	}
 	//close the listening socket
-	close(socketfd);
+	if(close(socketfd) != 0) //close the data connection
+		printf("socketfd not closed\n");
 
 	return 0;
 }

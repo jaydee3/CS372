@@ -24,30 +24,30 @@ from pathlib import Path #to test if a file exists
 ########################################################################################
 def checkArgs():
 	if len(sys.argv) < 5 or len(sys.argv) > 6:
-		print("USAGE: invalid number of arguments")
+		print("USAGE: invalid number of arguments\n")
 		sys.exit(1)
 	if sys.argv[1] != "flip1" and  sys.argv[1] != "flip2" and sys.argv[1] != "flip3":
-		print("USAGE: Second argument must be flip1, flip2, or flip3")
+		print("USAGE: Second argument must be flip1, flip2, or flip3\n")
 		sys.exit(1)
 	if int(sys.argv[2]) < 1024 or int(sys.argv[2]) > 65535:
-		print("USAGE: Invalid port number at argument three")
+		print("USAGE: Invalid port number at argument three\n")
 		sys.exit(1)
 	if sys.argv[3] != "-g" and sys.argv[3] != "-l":
-		print("USAGE: Fourth argument must be '-l' to list files or '-g' to get file")
+		print("USAGE: Fourth argument must be '-l' to list files or '-g' to get file\n")
 		sys.exit(1)
 	if sys.argv[3] == "-l": 
 		if int(sys.argv[4]) < 1024 or int(sys.argv[4]) > 65535:
-			print("USAGE: Invalid port number at argument five")
+			print("USAGE: Invalid port number at argument five\n")
 			sys.exit(1)
 		if len(sys.argv) != 5:
-			print("USAGE: Invalid number of arguments for command '-l'")
+			print("USAGE: Invalid number of arguments for command '-l'\n")
 			sys.exit(1)
 	if sys.argv[3] == "-g": 
 		if int(sys.argv[5]) < 1024 or int(sys.argv[5]) > 65535:
-			print("USAGE: Invalid port number at argument six")
+			print("USAGE: Invalid port number at argument six\n")
 			sys.exit(1)
 		if len(sys.argv) != 6:
-			print("USAGE: Invalid number of arguments for command '-g'")
+			print("USAGE: Invalid number of arguments for command '-g'\n")
 			sys.exit(1)
 		
 ########################################################################################
@@ -124,6 +124,7 @@ def receiveDirectory(dataSocket):
 	while filename != "***FIN":
 		print("  " + filename, end="\n")
 		filename = receiveMessage(dataSocket)
+	print("\n")
 
 ########################################################################################
 # Description: Creates a file that the user has requested, then fills that file with
@@ -157,7 +158,7 @@ def receiveFile(dataSocket):
 	filebuffer = recv_msg(dataSocket) #receive data
 	filedesc.write(filebuffer) #save data to file
 	filedesc.close() #close file
-	print("File transfer complete")
+	print("File transfer complete\n")
 
 ########################################################################################
 # Description: Creates a control connection with the server
@@ -199,7 +200,7 @@ def makeRequest(clientSocket):
 		sendMessage(clientSocket, filename)
 		message = receiveMessage(clientSocket)
 		if message == "File not found":
-			print(sys.argv[1] + ":" + sys.argv[2] + " says FILE NOT FOUND")
+			print(sys.argv[1] + ":" + sys.argv[2] + " says FILE NOT FOUND\n")
 			clientSocket.close(); #close original connecting socket
 			sys.exit(0)
 	return portno
@@ -220,7 +221,7 @@ def receiveData(portno):
 		serverSocket.listen(1)
 		dataSocket, addr = serverSocket.accept()
 	except:
-		print("ERROR: Port already in use")
+		print("ERROR: Port already in use\n")
 		serverSocket.close(); #close listening socket
 		clientSocket.close(); #close original connecting socket
 		sys.exit(0)	
@@ -233,7 +234,6 @@ def receiveData(portno):
 	if command == "-g":
 		receiveFile(dataSocket)
 
-	dataSocket.close() #close data connection
 	serverSocket.close(); #close listening socket
 
 ########################################################################################

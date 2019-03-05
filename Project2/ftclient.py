@@ -145,9 +145,9 @@ def receiveFile(dataSocket):
 		filename = sys.argv[4]
 		index = filename.find('.') #see if there is a dot in the file name
 		if index == -1: # if there is no dot in the file name
-			filename = filename + "(" + str(i) + ")" #append the number in the counter to the filename
+			filename = filename + "_" + str(i) #append the number in the counter to the filename
 		else: #if there is a .
-			filename = filename[:index] + "(" + str(i) + ")" + filename[index:] #append the counter number before the dot
+			filename = filename[:index] + "_" + str(i) + filename[index:] #append the counter number before the dot
 		config = Path(filename) #store the new file name in config to test on the next loop
 	if filename != sys.argv[4]: #if the file has to be saved as a copy
 		print("File " + sys.argv[4] + " already exists. Saving file as " + filename)

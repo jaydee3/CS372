@@ -1,0 +1,26 @@
+Files:
+	ftserver.c - C code of FTP server
+	ftclient.py - Python code for the FTP client
+	makefile - makefile for ftserver.c
+
+Compilation:
+	Place makefile and ftserver.c in the same directory and enter "make" on the command line to create ftserver executable
+
+Instructions:
+
+	1. Start ftserver by entering "ftserver [port]" on the command line
+		- [port] is a valid numerical port number
+	2. Send request to ftserver from chatserve.py by entering: 
+		-"python3 ftclient.py [server name] [server port] -l [data port]" to get the directory listing from ftserver
+		-"python3 ftclient.py [server name] [server port] -g [file name] [data port]" to transfer a file from ftserver's directory
+			- [server name] is the name of the server the ftserver is running on (flip1, flip2, or flip3)
+			- [server port] is the port ftserver is running on
+			- [data port] is the port that will be used to transfer the requested data over
+			- [file name] is a valid file name in ftserver's directory
+	3. The ftserver program be terminated at anytime by pressing CTRL+C
+
+Note:
+	These files were developed on flip 2 and flip3, and tested on flip1, flip2, and flip3
+	The ftserver executable and ftclient.py files can be placed in the same or separate folders.
+	If the client is trying to save a file that already exists in its folder, it will still copy the file, but append a number at the end of the file name
+	
